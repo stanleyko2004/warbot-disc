@@ -4,11 +4,12 @@ from client import client
 import asyncio
 
 class Member:
-  def __init__(self, member):
+  def __init__(self, member, rank):
     self.name = member['name'].encode("ascii", "ignore").decode() #emojis and stuff screw up spacing
     self.trophies = member['trophies']
     self.tag = member['tag']
-    self.logs = []
+    self.logs = {}
+    self.rank = rank
 
 class Battle:
   def __init__(self, battle):
@@ -46,14 +47,14 @@ class ClubTable:
 
   def __init__(self, club_tag):
     self.club_tag = club_tag
-    self.members = []
+    self.members = {}
 
   async def create(self):
     #repolling
     self.club = client.get_club(self.club_tag)
-    for i in client.get_club_members(self.club_tag, use_cache=False).raw_data:
-      if not any(member.tag == i['tag'] for member in self.members): #new player
-        self.members.append(Member(i))
+    for member in client.get_club_members(self.club_tag, use_cache=False).raw_data:
+      if not member['tag'] in self.members:
+        self.members[str(member['tag'])] = Member(member, len(self.members)+1)
     await self.get_member_logs()
 
     table = ''
@@ -63,16 +64,17 @@ class ClubTable:
     table += spacing.format(*headers) + '\n'
 
     #displaying the data
-    for index, member in enumerate(self.members):
-      args = [[str(index+1) + '.' + member.name[:7]],[member.trophies],[member.tag]]
-      for battle in member.logs:
+    for member_tag in self.members.keys():
+      member = self.members[member_tag]
+      args = [[str(member.rank) + '.' + member.name[:7]],[member.trophies],[member_tag]]
+      for battle_time in member.logs.keys():
+        battle = member.logs[battle_time]
         args[0].append(battle.result[:1].upper())
         args[1].append(battle.trophies)
         temp_mems = '' #mega sus
-        for teammate in battle.teams: #teammate is a player tag
-          for i, clubmate in enumerate(self.members):
-            if member.tag != clubmate.tag == teammate:
-              temp_mems += str(i+1) + ' '
+        for teammate_tag in battle.teams: #teammate is a player tag
+          if teammate_tag != member_tag and teammate_tag in self.members:
+            temp_mems += str(self.members[teammate_tag].rank) + ' '
         temp_mems.strip()
         if temp_mems == '':
           temp_mems = '~'
@@ -91,15 +93,16 @@ class ClubTable:
     print(table)
 
   async def get_member_logs(self):
-    for member in self.members:
+    for member_tag in self.members.keys():
+      member = self.members[member_tag]
       await asyncio.sleep(0.1) #prevent rate limit?
-      logs = client.get_battle_logs(member.tag).raw_data
+      logs = client.get_battle_logs(member_tag).raw_data
       if len(logs) > 0: #in case log wipes
         member.last_online = datetime.strptime(logs[0]['battleTime'], '%Y%m%dT%H%M%S.%fZ')
         for battle in logs:
           new_battle = Battle(battle)
           if new_battle.is_current_club_match and not any(i.time == new_battle.time for i in member.logs): #new club match
-            member.logs.append(new_battle)
+            member.logs[new_battle.time] = new_battle
       else:
         member.last_online = None
 
