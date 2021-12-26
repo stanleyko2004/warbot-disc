@@ -1,5 +1,6 @@
 #ting the whole file
 from datetime import datetime
+
 from client import client
 import asyncio
 
@@ -48,20 +49,20 @@ class ClubTable:
   def __init__(self, club_tag):
     self.club_tag = club_tag
     self.members = {}
+    self.messages = []
 
   async def create(self):
     #repolling
-    self.club = client.get_club(self.club_tag)
-    for member in client.get_club_members(self.club_tag, use_cache=False).raw_data:
+    self.club = client.get_club(self.club_tag, use_cache=False)
+    for member in self.club['members']:
       if not member['tag'] in self.members:
         self.members[str(member['tag'])] = Member(member, len(self.members)+1)
     await self.get_member_logs()
 
-    table = ''
     #displaying the headers
     spacing = "{:<12} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<11}"
     headers = ["Player", "t1", "t2", "t3", "t4", "gt1", "gt2", "gt3", "gt4", "last online"]
-    table += spacing.format(*headers) + '\n'
+    self.messages.append(spacing.format(*headers) + '\n')
 
     #displaying the data
     for member_tag in self.members.keys():
@@ -87,10 +88,11 @@ class ClubTable:
       args[0].append('~' if member.last_online is None else member.last_online.strftime("%H:%M:%S"))
       args[1].append('~' if member.last_online is None else member.last_online.strftime("%m/%d/%Y"))
       args[2].append('-')
+      message = ''''''
       for i in range(3):
-        table += spacing.format(*args[i]) + '\n'
-      table += '\n'
-    print(table)
+        message += spacing.format(*args[i])+'\n'
+      self.messages.append(message)
+    return self.messages
 
   async def get_member_logs(self):
     for member_tag in self.members.keys():
@@ -110,11 +112,12 @@ class ClubTable:
 if __name__ == "__main__":
   async def main():
     table = ClubTable('#2PLUPQPV')
-    await table.create()
+    print(await table.create())
+
     # logs = client.get_battle_logs('#8LVLYLJU').raw_data
     # pass
-    await asyncio.sleep(10)
-    await table.create() #testing that battles don't overlap
+    # await asyncio.sleep(10)
+    # await table.create() #testing that battles don't overlap
 
   loop = asyncio.get_event_loop()
   loop.run_until_complete(main())
