@@ -1,5 +1,5 @@
 #ting the whole file
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from client import client
 import asyncio
@@ -23,8 +23,9 @@ class Battle:
       elif (battle['battle']['type'] == 'soloRanked'): #solo cl
         self.is_power_match = False
 
-    self.time = datetime.strptime(battle['battleTime'], '%Y%m%dT%H%M%S.%fZ') #datetime object
-    self.in_time_range = (datetime.now() - self.time).total_seconds() < 24*3600 #boolean
+    self.time = datetime.strptime(battle['battleTime'], '%Y%m%dT%H%M%S.%fZ') - timedelta(hours=8) #datetime object, goddamn finland
+    self.time_since = (datetime.now() - self.time).total_seconds()
+    self.in_time_range = self.time_since < 24*3600 #boolean
 
     if ('trophyChange' in battle['battle']):
       self.trophies = battle['battle']['trophyChange'] #int
@@ -49,7 +50,6 @@ class ClubTable:
   def __init__(self, club_tag):
     self.club_tag = club_tag
     self.members = {}
-    self.messages = []
 
   async def create(self):
     #repolling
@@ -57,19 +57,19 @@ class ClubTable:
     for member in self.club['members']:
       if not member['tag'] in self.members:
         self.members[str(member['tag'])] = Member(member, len(self.members)+1)
-    await self.get_member_logs()
+    await self.get_all_logs()
 
+    messages = []
     #displaying the headers
     spacing = "{:<12} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<6} {:<11}"
     headers = ["Player", "t1", "t2", "t3", "t4", "gt1", "gt2", "gt3", "gt4", "last online"]
-    self.messages.append(spacing.format(*headers) + '\n')
+    messages.append(spacing.format(*headers) + '\n')
 
     #displaying the data
-    for member_tag in self.members.keys():
+    for member_tag, member in self.members.items():
       member = self.members[member_tag]
       args = [[str(member.rank) + '.' + member.name[:7]],[member.trophies],[member_tag]]
-      for battle_time in member.logs.keys():
-        battle = member.logs[battle_time]
+      for battle_time, battle in member.logs.items():
         args[0].append(battle.result[:1].upper())
         args[1].append(battle.trophies)
         temp_mems = '' #mega sus
@@ -91,29 +91,29 @@ class ClubTable:
       message = ''''''
       for i in range(3):
         message += spacing.format(*args[i])+'\n'
-      self.messages.append(message)
-    return self.messages
+      messages.append(message)
+    return messages
 
-  async def get_member_logs(self):
-    for member_tag in self.members.keys():
-      member = self.members[member_tag]
+  async def get_all_logs(self):
+    for member_tag, member in self.members.items():
       await asyncio.sleep(0.1) #prevent rate limit?
-      logs = client.get_battle_logs(member_tag).raw_data
+      logs = client.get_battle_logs(member_tag, use_cache=False).raw_data
       if len(logs) > 0: #in case log wipes
-        member.last_online = datetime.strptime(logs[0]['battleTime'], '%Y%m%dT%H%M%S.%fZ')
+        member.last_online = datetime.strptime(logs[0]['battleTime'], '%Y%m%dT%H%M%S.%fZ') - timedelta(hours=8) #datetime object, goddamn finland
         for battle in logs:
           new_battle = Battle(battle)
-          if new_battle.is_current_club_match and not any(i.time == new_battle.time for i in member.logs): #new club match
+          if new_battle.is_current_club_match and not new_battle.time in member.logs: #new club match
             member.logs[new_battle.time] = new_battle
       else:
         member.last_online = None
+
 
 
 if __name__ == "__main__":
   async def main():
     table = ClubTable('#2PLUPQPV')
     print(await table.create())
-
+    pass
     # logs = client.get_battle_logs('#8LVLYLJU').raw_data
     # pass
     # await asyncio.sleep(10)

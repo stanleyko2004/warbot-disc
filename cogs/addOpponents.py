@@ -1,3 +1,4 @@
+from brawlstats.errors import NotFoundError
 import discord
 from discord.ext import commands
 
@@ -27,16 +28,16 @@ class AddOpponents(commands.Cog):
     #creating channels
     tags = tags.split(' ')
     for club_tag in tags:
-      club_name = client.get_club(club_tag).raw_data['name'] #ting
-      channel = await guild.create_text_channel(club_name, category=category)
-      self.client.guild_data[guild.id]['Opponents'].append({'tag': club_tag, 'name': club_name, 'channel': channel})
-
-    #sending initial tables
-    for opponent in self.client.guild_data[guild.id]['Opponents']:
-      table = ClubTable(opponent['tag'])
-      messages = await table.create()
-      for message in messages[:10]:
-        await opponent['channel'].send(f"```{message}```")
+      try: #sometimes it can't find club
+        table = ClubTable(club_tag)
+        messages = await table.create()
+        club_name = client.get_club(club_tag).raw_data['name'] #ting
+        channel = await guild.create_text_channel(club_name, category=category)
+        for message in messages:
+          await channel.send(f"```{message}```")
+        self.client.guild_data[guild.id]['Opponents'].append({'tag': club_tag, 'name': club_name, 'channel': channel, 'table': table})
+      except NotFoundError:
+        await ctx.send(f'not found: {club_tag}')
 
 def setup(client):
   client.add_cog(AddOpponents(client))

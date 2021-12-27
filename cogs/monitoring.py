@@ -1,6 +1,7 @@
-import discord
+from datetime import datetime
+from brawlstats.errors import NotFoundError
+from util import ClubTable
 from discord.ext import tasks, commands
-from client import client #ting
 
 class Monitoring(commands.Cog):
   def __init__(self, client):
@@ -8,21 +9,31 @@ class Monitoring(commands.Cog):
     self.client = client
     self.watcher.start()
 
-  @tasks.loop(seconds=5.0)
+  @tasks.loop(minutes=5.0)
   async def watcher(self):
-    guilds = self.client.guilds
-    for guild in guilds:
-      for category, channels in guild.by_category():
-        if category.name == 'Opponents':
-          for channel in channels:
-            print(channel)
-          break
-    self.index += 1
+    print('polling', datetime.now().strftime("%H:%M:%S"))
+    guilds = self.client.guild_data
+    for guild in guilds.values():
+      for opponent in guild['Opponents']:
+        table = opponent['table']
+        new_messages = await table.create()
+        channel = opponent['channel']
+        current_messages = await channel.history(limit=50, oldest_first=True).flatten()
+        flag = True
+        for index, message in enumerate(new_messages):
+          if current_messages[index].content != f'```{message}```':
+            flag = False
+            print('something new!')
+            await current_messages[index].edit(content=f'```{message}```')
+        if flag:
+          name = opponent['name']
+          print(f'nothing new for {name} :(')
 
   @watcher.before_loop
   async def before_watcher(self):
-    print('waiting...')
+    print('loop boi not ready')
     await self.client.wait_until_ready()
+    print('loop boi ready')
 
 def setup(client):
   client.add_cog(Monitoring(client))

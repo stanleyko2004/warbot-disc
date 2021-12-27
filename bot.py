@@ -29,7 +29,7 @@ async def reload(ctx, extension):
     client.load_extension(ext := f'cogs.{extension}')
     print(f'reloaded {ext}')
 
-blacklist = ['monitoring.py']
+blacklist = []
 
 for filename in os.listdir('./cogs'):
     if filename.endswith('.py') and not filename in blacklist:
