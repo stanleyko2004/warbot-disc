@@ -4,15 +4,15 @@ from util import ClubTable
 from discord.ext import tasks, commands
 
 class Monitoring(commands.Cog):
-  def __init__(self, client):
+  def __init__(self, bot):
     self.index = 0
-    self.client = client
+    self.bot = bot
     self.watcher.start()
 
   @tasks.loop(minutes=5.0)
   async def watcher(self):
     print('polling', datetime.now().strftime("%H:%M:%S"))
-    guilds = self.client.guild_data
+    guilds = self.bot.guild_data
     for guild in guilds.values():
       for opponent in guild['Opponents']:
         table = opponent['table']
@@ -32,8 +32,8 @@ class Monitoring(commands.Cog):
   @watcher.before_loop
   async def before_watcher(self):
     print('loop boi not ready')
-    await self.client.wait_until_ready()
+    await self.bot.wait_until_ready()
     print('loop boi ready')
 
-def setup(client):
-  client.add_cog(Monitoring(client))
+def setup(bot: commands.Bot):
+  bot.add_cog(Monitoring(bot))

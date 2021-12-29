@@ -1,8 +1,8 @@
 from discord.ext import commands
 
 class deleteOpponents(commands.Cog):
-  def __init__(self, client):
-    self.client = client
+  def __init__(self, bot):
+    self.bot = bot
 
   @commands.command(aliases = ['d'])
   async def deleteOpponents(self, ctx):
@@ -18,5 +18,5 @@ class deleteOpponents(commands.Cog):
     except:
       pass
 
-def setup(client):
-  client.add_cog(deleteOpponents(client))
+def setup(bot: commands.Bot):
+  bot.add_cog(deleteOpponents(bot))

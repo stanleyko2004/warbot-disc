@@ -8,8 +8,8 @@ from util import ClubTable
 ######
 
 class AddOpponents(commands.Cog):
-  def __init__(self, client):
-    self.client = client
+  def __init__(self, bot):
+    self.bot = bot
 
   @commands.command(aliases = ['o'])
   async def addOpponents(self, ctx, *, tags):
@@ -21,9 +21,9 @@ class AddOpponents(commands.Cog):
       category = await guild.create_category('Opponents')
 
     #initialize guild opponents
-    if not guild.id in self.client.guild_data:
-      self.client.guild_data[guild.id] = {}
-    self.client.guild_data[guild.id]['Opponents'] = []
+    if not guild.id in self.bot.guild_data:
+      self.bot.guild_data[guild.id] = {}
+    self.bot.guild_data[guild.id]['Opponents'] = []
 
     #creating channels
     tags = tags.split(' ')
@@ -35,9 +35,9 @@ class AddOpponents(commands.Cog):
         channel = await guild.create_text_channel(club_name, category=category)
         for message in messages:
           await channel.send(f"```{message}```")
-        self.client.guild_data[guild.id]['Opponents'].append({'tag': club_tag, 'name': club_name, 'channel': channel, 'table': table})
+        self.bot.guild_data[guild.id]['Opponents'].append({'tag': club_tag, 'name': club_name, 'channel': channel, 'table': table})
       except NotFoundError:
         await ctx.send(f'not found: {club_tag}')
 
-def setup(client):
-  client.add_cog(AddOpponents(client))
+def setup(bot: commands.Bot):
+  bot.add_cog(AddOpponents(bot))
