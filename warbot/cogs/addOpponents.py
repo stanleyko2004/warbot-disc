@@ -3,9 +3,9 @@ import discord
 from discord.ext import commands
 
 ######ting
-from client import client
 from util import ClubTable
 ######
+
 
 class AddOpponents(commands.Cog):
   def __init__(self, bot):
@@ -31,6 +31,7 @@ class AddOpponents(commands.Cog):
       try: #sometimes it can't find club
         table = ClubTable(club_tag)
         messages = await table.create()
+        client = self.bot.get_cog('bsClient')
         club_name = client.get_club(club_tag).raw_data['name'] #ting
         channel = await guild.create_text_channel(club_name, category=category)
         for message in messages:
