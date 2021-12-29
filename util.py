@@ -1,8 +1,11 @@
 #ting the whole file
 from datetime import datetime, timedelta
 
-from client import client
+from brawlstats import Client
+from warbot.config import BS_TOKEN
 import asyncio
+
+client = Client(BS_TOKEN())
 
 class Member:
   def __init__(self, member, rank):
