@@ -1,6 +1,7 @@
 from typing import TYPE_CHECKING
 
 import asyncio
+import time
 
 import discord
 from discord.channel import CategoryChannel, TextChannel
@@ -19,19 +20,17 @@ OPPONENTS_CATEGORY = 'Opponents'
 class Opponents(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
+        self.client: bsClient = self.bot.get_cog('bsClient')
         
     @commands.command(aliases = ['p'])
     async def getPlayer(self, ctx: context.Context, id):
-        client: bsClient = self.bot.get_cog('bsClient')
-        if client is not None:
-            try:
-                id = await client.get_player(id)
-            except NotFoundError as e:
-                id = str(e)
-            print(id)
-            await ctx.send(id)
-        else:
-            await ctx.send('brawlstats client not loaded')
+        try:
+            id = await self.client.get_player(id)
+        except NotFoundError as e:
+            id = str(e)
+        print(id)
+        await ctx.send(id)
+
             
     @commands.command(aliases = ['o'])
     async def addOpponents(self, ctx: context.Context, *, tags: str):
@@ -47,14 +46,15 @@ class Opponents(commands.Cog):
         self.bot.guild_data[guild.id]['Opponents'] = []
         
         #TODO initialize table for each added opponent club
-        client: bsClient = self.bot.get_cog('bsClient')
-        poller = Poller(self.bot, client)
+        poller = Poller(self.bot)
+        start = time.time()
         tasks = []
         for club_tag in tags.split(' '):
             tasks.append(self.bot.loop.create_task(poller.initialize_club(club_tag)))
 
         clubs = await asyncio.gather(*tasks)
         assert clubs
+        await ctx.send(f'done in {time.time() - start} secs')
 
     @commands.command(aliases = ['d'])
     async def deleteOpponents(self, ctx: context.Context):
