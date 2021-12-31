@@ -3,7 +3,7 @@ from warbot.config import BS_TOKEN
 from discord.ext import commands
 import backoff
 
-class bsClient(brawlstats.Client, commands.Cog):
+class BSClient(brawlstats.Client, commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         brawlstats.Client.__init__(self, BS_TOKEN(), is_async=True, loop=bot.loop)
@@ -23,11 +23,11 @@ class bsClient(brawlstats.Client, commands.Cog):
 
     # deal with rate limits
     @backoff.on_exception(backoff.expo,
-                        brawlstats.ServerError,
-                        max_tries=5,
-                        on_backoff=serv_backoff_hdlr,
-                        # on_success=success_hdlr
-                        )
+                          brawlstats.ServerError,
+                          max_tries=5,
+                          on_backoff=serv_backoff_hdlr,
+                          # on_success=success_hdlr
+                          )
     @backoff.on_exception(backoff.expo, 
                           brawlstats.RateLimitError,
                           max_tries=10,
@@ -39,4 +39,4 @@ class bsClient(brawlstats.Client, commands.Cog):
         return await brawlstats.Client._arequest(self, url, use_cache)
 
 def setup(bot: commands.Bot):
-    bot.add_cog(bsClient(bot))
+    bot.add_cog(BSClient(bot))

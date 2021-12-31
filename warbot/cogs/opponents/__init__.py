@@ -12,7 +12,7 @@ from brawlstats.errors import NotFoundError
 from .polling import Poller
 
 if TYPE_CHECKING:
-    from bsClient import bsClient
+    from warbot.cogs.bsClient import BSClient
     from discord.guild import Guild
 
 OPPONENTS_CATEGORY = 'Opponents'
@@ -20,7 +20,7 @@ OPPONENTS_CATEGORY = 'Opponents'
 class Opponents(commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.client: bsClient = self.bot.get_cog('bsClient')
+        self.client: BSClient = self.bot.get_cog('BSClient')
         
     @commands.command(aliases = ['p'])
     async def getPlayer(self, ctx: context.Context, id):

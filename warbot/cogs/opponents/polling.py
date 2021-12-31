@@ -8,13 +8,13 @@ from .models import Player, Battle, Club, BattleType, Result
 from datetime import datetime, timedelta
 
 if TYPE_CHECKING:
-    from warbot.cogs.bsClient import bsClient
+    from warbot.cogs.bsClient import BSClient
 
 class Poller:
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
-        self.client: bsClient = bot.get_cog('bsClient')
+        self.client: BSClient = bot.get_cog('BSClient')
     
     async def initialize_club(self, tag: str):
         club_data = (await self.client.get_club(tag)).raw_data
