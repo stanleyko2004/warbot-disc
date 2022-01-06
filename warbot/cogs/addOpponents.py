@@ -31,8 +31,8 @@ class AddOpponents(commands.Cog):
       try: #sometimes it can't find club
         table = ClubTable(club_tag)
         messages = await table.create()
-        client = self.bot.get_cog('bsClient')
-        club_name = client.get_club(club_tag).raw_data['name'] #ting
+        client = self.bot.get_cog('BSClient')
+        club_name = (await client.get_club(club_tag)).raw_data['name'] #ting
         channel = await guild.create_text_channel(club_name, category=category)
         for message in messages:
           await channel.send(f"```{message}```")
