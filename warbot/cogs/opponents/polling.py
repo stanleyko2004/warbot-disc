@@ -85,36 +85,11 @@ class Poller:
         if tag is club_data is None:
             raise ValueError('need club tag or club data')
         return await self.update_club(Club(tag or club_data['tag']), club_data, True, True)
-        club_data: ClubData = (await self.client.get_club(tag)).raw_data
-        print(f"found {club_data['name']}({tag}), getting players")
-        club_members = {}
-        tasks = []
-        for i, member_data in enumerate(club_data['members']):
-            tasks.append(self.bot.loop.create_task(self.initialize_player(member_data, i+1)))
-        club_members = {k:v for k,v in await asyncio.gather(*tasks)}
-        print(f"{club_data['name']}({tag}) initialized")
-        return Club(tag, club_data['name'], club_members)
         
     async def initialize_player(self, tag: str = None, member_data: Union[MemberData, PlayerData] = None, rank: int = None):
         if tag is member_data is None:
             raise ValueError('need player tag or player data')
         return await self.update_player(Player(tag or member_data['tag']), member_data, rank)
-        new_player = Player(tag = member_data['tag'], 
-                            name = member_data['name'].encode("ascii", "ignore").decode(),
-                            trophies = member_data['trophies'],
-                            rank = rank
-                            )
-        battle_log_data = (await self.client.get_battle_logs(member_data['tag'])).raw_data
-        if len(battle_log_data) > 0: #in case log wipes
-            new_player.lastOnline = Poller.get_datetime(battle_log_data[0]['battleTime'])
-            for battle_data in battle_log_data:
-                if args := Poller.valid_battle(battle_data):
-                    battle = Battle(*args)
-                    for i in range(2):
-                        for member_data in battle_data['battle']['teams'][i]:
-                            battle.teams.append(member_data['tag'])
-                    new_player.warBattles.append(battle)
-        return member_data['tag'], new_player
     
     async def update_club(self, club: Club, club_data: ClubData = None, update_players: bool = False, update_logs: bool = False) -> Club:
         if club_data is None:
