@@ -34,12 +34,16 @@ async def reload(ctx, extension):
     bot.reload_extension(ext := f'warbot.cogs.{extension}')
     print(f'reloaded {ext}')
 
-# blacklist = {'__init__.py', 'addOpponents.py', 'monitoring.py', 'deleteOpponents.py'}
+# blacklist = {}#'__init__.py', 'addOpponents.py', 'monitoring.py', 'deleteOpponents.py'}
 
 # for filename in os.listdir('./warbot/cogs'):
 #     if filename.endswith('.py') and not filename in blacklist:
 #         bot.load_extension(ext := f'warbot.cogs.{filename[:-3]}')
 #         print(f'loaded {ext}')
+
+# bot.load_extension('warbot.cogs.addOpponents')
+# bot.load_extension('warbot.cogs.monitoring')
+# bot.load_extension('warbot.cogs.deleteOpponents')
 
 bot.load_extension('warbot.cogs.bsClient')
 bot.load_extension('warbot.cogs.opponents')

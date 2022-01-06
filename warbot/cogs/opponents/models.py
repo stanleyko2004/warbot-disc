@@ -48,4 +48,4 @@ class Club(StoredObject):
     tag: str = ''
     name: str = ''
     members: dict[str, Player] = field(default_factory=dict)
-    
+    battles: set = field(default_factory=set)
