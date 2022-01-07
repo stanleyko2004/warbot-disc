@@ -7,6 +7,7 @@ class BSClient(brawlstats.Client, commands.Cog):
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         brawlstats.Client.__init__(self, BS_TOKEN(), is_async=True, loop=bot.loop)
+        
     def cog_unload(self):
         self.bot.loop.create_task(self.close())
 
@@ -27,7 +28,7 @@ class BSClient(brawlstats.Client, commands.Cog):
                           on_backoff=serv_backoff_hdlr,
                           # on_success=success_hdlr
                           )
-    @backoff.on_exception(backoff.expo,
+    @backoff.on_exception(backoff.expo, 
                           brawlstats.RateLimitError,
                           max_tries=10,
                           on_backoff=limit_backoff_hdlr,

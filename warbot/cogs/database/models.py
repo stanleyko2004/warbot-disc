@@ -1,9 +1,8 @@
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import Union
 
 import sqlalchemy
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, Boolean, ForeignKey
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.associationproxy import association_proxy
 from sqlalchemy.orm.decl_api import DeclarativeMeta, registry
@@ -11,23 +10,50 @@ from sqlalchemy.orm.decl_api import DeclarativeMeta, registry
 from datetime import datetime
 import enum
 
-mapper_registry = registry()
+from sqlalchemy.sql.schema import ForeignKeyConstraint
 
-class Base(metaclass=DeclarativeMeta):
-    __abstract__ = True
-    registry = mapper_registry
-    metadata = mapper_registry.metadata
-    
-    __init__ = mapper_registry.constructor
+mapper_registry = registry()
 
 class Result(str, enum.Enum):
     victory = 'victory'
     draw = 'draw'
     defeat = 'defeat'
-    
+
 class BattleType(str, enum.Enum):
     soloRanked = 'soloRanked'
     teamRanked = 'teamRanked'
+
+@mapper_registry.mapped
+@dataclass
+class War:
+    __tablename__ = 'war'
+    
+    __sa_dataclass_metadata_key__ = 'sa'
+    id: int = field(init=False, metadata={'sa': Column(Integer, primary_key=True)})
+    
+    # store days
+    days: list[Day] = field(default_factory=list, metadata={'sa': relationship('Day')})
+
+@mapper_registry.mapped
+@dataclass
+class Club:
+    __tablename__ = 'club'
+
+    __sa_dataclass_metadata_key__ = 'sa'
+    tag: str = field(metadata={'sa': Column(String, primary_key=True)}) # treat as id
+    
+    #access days
+
+@mapper_registry.mapped
+@dataclass
+class Day:
+    __tablename__ = 'day'
+
+    __sa_dataclass_metadata_key__ = 'sa'
+    id: int = field(init=False, metadata={'sa': Column(Integer, primary_key=True)})
+
+    # store war
+    warId: str = field(init=False, metadata={'sa': Column(ForeignKey('war.id'))})
 
 @mapper_registry.mapped
 @dataclass
@@ -36,69 +62,116 @@ class Player:
 
     __sa_dataclass_metadata_key__ = 'sa'
     tag: str = field(metadata={'sa': Column(String, primary_key=True)}) # treat as id
-    name: str = field(default=None, metadata={'sa': Column(String)})
-    trophies: int = field(default=None, metadata={'sa': Column(Integer)})
-    lastOnline: datetime = field(default=None, metadata={'sa': Column(DateTime)})
-    rank: int = field(default=None, metadata={'sa': Column(Integer)})
-    warBattles: list[Battle] = field(default_factory=list, metadata={'sa': association_proxy('player_battles', 'battle')})
-
 
 @mapper_registry.mapped
 @dataclass
 class Battle:
     __tablename__ = 'battle'
-    
-    __sa_dataclass_metadata_key__ = 'sa'
-    id: int = field(init=False, metadata={'sa': Column(Integer, primary_key=True)})
-    time: datetime = field(default=None, metadata={'sa': Column(DateTime)})
-    trophyChange: int = field(default=None, metadata={'sa': Column(Integer)})
-    type: BattleType = field(default=None, metadata={'sa': Column(sqlalchemy.Enum(BattleType))})
-    result: Result = field(default=None, metadata={'sa': Column(sqlalchemy.Enum(Result))})
-    teams: list[Player] = field(default_factory=list, metadata={'sa': association_proxy('player_battles', 'player')})
-
-@mapper_registry.mapped
-class Player_Battle:
-    __tablename__ = 'player_battle'
-    
-    playerTag: str = Column(ForeignKey('player.tag'), primary_key=True)
-    battleId: int = Column(ForeignKey('battle.id'), primary_key=True)
-    player: Player = relationship(Player, backref='player_battles')
-    battle: Battle = relationship(Battle, backref='player_battles')
-    
-    def __init__(self, p1: Union[Player, Battle] = None, p2: Union[Player, Battle] = None):
-        self.player = p1 if isinstance(p1, Player) else p2 if isinstance(p2, Player) else None
-        self.battle = p1 if isinstance(p1, Battle) else p2 if isinstance(p2, Battle) else None
-
-@mapper_registry.mapped
-@dataclass
-class Club:
-    __tablename__ = 'club'
-    
-    __sa_dataclass_metadata_key__ = 'sa'
-    tag: str = field(metadata={'sa': Column(String, primary_key=True)}) # treat as id
-    name: str = field(default=None, metadata={'sa': Column(String)})
-    trophies: int = field(default=None, metadata={'sa': Column(Integer)})
-    wars: list[War] = field(default_factory=list, metadata={'sa': association_proxy('club_wars', 'war')})
-
-@mapper_registry.mapped
-@dataclass
-class War:
-    __tablename__ = 'war'
 
     __sa_dataclass_metadata_key__ = 'sa'
     id: int = field(init=False, metadata={'sa': Column(Integer, primary_key=True)})
-    clubs: list[Club] = field(default_factory=list, metadata={'sa': association_proxy('club_wars', 'club')})
     
+    # club_war_day association
+    clubTag: str = field(init=False, metadata={'sa': Column(ForeignKey('club.tag'), primary_key=True)})
+    warId: int = field(init=False, metadata={'sa': Column(ForeignKey('war.id'), primary_key=True)})
+    dayId: int = field(init=False, metadata={'sa': Column(ForeignKey('day.id'), primary_key=True)})
+    __table_args__ = (ForeignKeyConstraint(['clubTag', 'warId', 'dayId'],
+                                           ['club_war_day.clubTag', 'club_war_day.warId', 'club_war_day.dayId']),)
 
 @mapper_registry.mapped
+@dataclass
 class Club_War:
+    """Snapshot of club during a specific war"""
     __tablename__ = 'club_war'
+
+    __sa_dataclass_metadata_key__ = 'sa'
     
-    clubTag: str = Column(ForeignKey('club.tag'), primary_key=True)
-    warId: int = Column(ForeignKey('war.id'), primary_key=True)
-    club: Club = relationship(Club, backref='club_wars')
-    war: War = relationship(War, backref='club_wars')
+    # club-war association
+    clubTag: str = field(init=False, metadata={'sa': Column(ForeignKey('club.tag'), primary_key=True)})
+    warId: int = field(init=False, metadata={'sa': Column(ForeignKey('war.id'), primary_key=True)})
+    war: War = field(default=None, metadata={'sa': relationship(War, backref='club_wars')})
+    club: Club = field(default=None, metadata={'sa': relationship(Club, backref='club_wars')})
+
+@mapper_registry.mapped
+@dataclass
+class Club_War_Player:
+    """Snapshot of player in a specific club_war"""
+    __tablename__ = 'club_war_player'
+
+    __sa_dataclass_metadata_key__ = 'sa'
     
-    def __init__(self, p1: Union[Club, War] = None, p2: Union[Club, War] = None):
-        self.club = p1 if isinstance(p1, Club) else p2 if isinstance(p2, Club) else None
-        self.war = p1 if isinstance(p1, War) else p2 if isinstance(p2, War) else None
+    # club-war-player association
+    clubTag: str = field(init=False, metadata={'sa': Column(ForeignKey('club.tag'), primary_key=True)})
+    warId: int = field(init=False, metadata={'sa': Column(ForeignKey('war.id'), primary_key=True)})
+    playerTag: str = field(init=False, metadata={'sa': Column(ForeignKey('player.tag'), primary_key=True)})
+    
+    club_war: Club_War = field(default=None, metadata={'sa': relationship(Club_War, backref='club_war_players')})
+    player: Player = field(default=None, metadata={'sa': relationship(Player, backref='club_war_players')})
+    __table_args__ = (ForeignKeyConstraint(['clubTag', 'warId'],
+                                           ['club_war.clubTag', 'club_war.warId']),)
+
+@mapper_registry.mapped
+@dataclass
+class Club_War_Day:
+    __tablename__ = 'club_war_day'
+
+    __sa_dataclass_metadata_key__ = 'sa'
+    
+    # club-war-day association
+    clubTag: str = field(init=False, metadata={'sa': Column(ForeignKey('club.tag'), primary_key=True)})
+    warId: int = field(init=False, metadata={'sa': Column(ForeignKey('war.id'), primary_key=True)})
+    dayId: int = field(init=False, metadata={'sa': Column(ForeignKey('day.id'), primary_key=True)})
+
+    club_war: Club_War = field(default=None, metadata={'sa': relationship(Club_War, backref='club_war_days')})
+    day: Day = field(default=None, metadata={'sa': relationship(Day, backref='club_war_days')})
+    __table_args__ = (ForeignKeyConstraint(['clubTag', 'warId'],
+                                           ['club_war.clubTag', 'club_war.warId']),)
+    
+    # actual data
+    battles: set[Battle] = field(default_factory=set, metadata={'sa': relationship(Battle, collection_class=set)})
+    club_war_day_players: list[Club_War_Day_Player] = field(default_factory=list, metadata={'sa': relationship('Club_War_Day_Player', back_populates='club_war_day')})
+    
+@mapper_registry.mapped
+@dataclass
+class Club_War_Day_Player:
+    __tablename__ = 'club_war_day_player'
+
+    __sa_dataclass_metadata_key__ = 'sa'
+    
+    # club-war-day-player association
+    clubTag: str = field(init=False, metadata={'sa': Column(ForeignKey('club.tag'), primary_key=True)})
+    warId: int = field(init=False, metadata={'sa': Column(ForeignKey('war.id'), primary_key=True)})
+    dayId: int = field(init=False, metadata={'sa': Column(ForeignKey('day.id'), primary_key=True)})
+    playerTag: str = field(init=False, metadata={'sa': Column(ForeignKey('player.tag'), primary_key=True)})
+    
+    club_war_day: Club_War_Day = field(default=None, metadata={'sa': relationship(Club_War_Day, back_populates='club_war_day_players')})
+    player: Club_War_Player = field(default=None, metadata={'sa': relationship(Club_War_Player, backref='club_war_day_players')})
+    __table_args__ = (ForeignKeyConstraint(['clubTag', 'warId', 'dayId'],
+                                           ['club_war_day.clubTag', 'club_war_day.warId', 'club_war_day.dayId']),
+                      ForeignKeyConstraint(['clubTag', 'warId', 'playerTag'],
+                                           ['club_war_player.clubTag','club_war_player.warId','club_war_player.playerTag']))
+    
+    # actual data
+    battles: list[Battle] = field(default_factory=list, metadata={'sa': association_proxy('club_war_day_player_battles', 'battle')})
+
+@mapper_registry.mapped
+@dataclass
+class Club_War_Day_Player_Battle:
+    __tablename__ = 'club_war_day_player_battle'
+
+    __sa_dataclass_metadata_key__ = 'sa'
+    
+    # club-war-day-player association
+    clubTag: str = field(init=False, metadata={'sa': Column(ForeignKey('club.tag'), primary_key=True)})
+    warId: int = field(init=False, metadata={'sa': Column(ForeignKey('war.id'), primary_key=True)})
+    dayId: int = field(init=False, metadata={'sa': Column(ForeignKey('day.id'), primary_key=True)})
+    playerTag: str = field(init=False, metadata={'sa': Column(ForeignKey('player.tag'), primary_key=True)})
+    battleId: str = field(init=False, metadata={'sa': Column(ForeignKey('battle.id'), primary_key=True)})
+    
+    club_war_day_player: Club_War_Day_Player = field(default=None, metadata={'sa': relationship(Club_War_Day_Player, backref='club_war_day_player_battles')})
+    battle: Battle = field(default=None, metadata={'sa': relationship(Battle, backref='club_war_day_player_battles')})
+    __table_args__ = (ForeignKeyConstraint(['clubTag', 'warId', 'dayId', 'playerTag'],
+                                           ['club_war_day_player.clubTag', 'club_war_day_player.warId', 'club_war_day_player.dayId', 'club_war_day_player.playerTag']),)
+    
+    # actual data
+    isGolden: bool = field(default=None, metadata={'sa': Column(Boolean)})
