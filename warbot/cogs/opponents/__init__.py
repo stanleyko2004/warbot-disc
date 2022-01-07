@@ -108,8 +108,8 @@ class Opponents(commands.Cog):
                 #         await current_messages[index].edit(content=f'```{message}```')
                 # if flag:
                 #     print(f'nothing new for {club.name} :(')
-                current_message = await channel.history(limit=1, oldest_first=True).flatten()[0]
-                if new_message := generate_message(club) != current_message.content:
+                current_message = (await channel.history(limit=1, oldest_first=True).flatten())[0]
+                if (new_message := generate_message(club)) != current_message.content:
                     await current_message.edit(content=new_message)
                     print(f"updating {club.name}")
                 else:
