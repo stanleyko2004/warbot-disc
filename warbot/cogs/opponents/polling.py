@@ -10,7 +10,8 @@ from datetime import datetime, timedelta
 
 if TYPE_CHECKING:
     from warbot.cogs.bsClient import BSClient
-    from warbot.cogs.bsClient.schema import *
+
+from warbot.cogs.bsClient.schema import *
 
 @dataclass(unsafe_hash=True, eq=True, frozen=True)
 class BattleProxy:
