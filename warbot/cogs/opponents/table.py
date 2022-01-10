@@ -1,19 +1,19 @@
 from .models import Club, BattleType, Player
+from warbot.cogs.database.models import Club_War, Club_War_Day
 
 spacing = "{:<12} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<3} {:<12}"
 headers = ["Player", "t1", "t2", "t3", "t4", "g1", "g2", "g3", "g4", "tot", "last online"]
 
-def generate_message(club: Club) -> str:
+def generate_message2(club_war_day: Club_War_Day) -> str:
     message: str = ''
     message += spacing.format(*headers) + '\n'
-    sorted_by_last_online: list[Player] = list(club.members.values())
-    sorted_by_last_online.sort(key=lambda x:x.lastOnline, reverse=True)
+    club_war_day_players = sorted(club_war_day.club_war_day_players.values(), key=lambda p:p.player.lastOnline, reverse=True)
     total_trophies: int = 0
-    for member in sorted_by_last_online:
+    for club_war_day_player in club_war_day_players:
         args: list[str] = []
-        args.append(f'{str(member.rank)}.{disc_safe(member.name)[:7]}') # ,[member.trophies],[tag]]
+        args.append(f'{str(club_war_day_player.player.rank)}.{disc_safe(club_war_day_player.player.name)[:7]}') # ,[member.trophies],[tag]]
         member_trophies: int = 0
-        for battle in member.warBattles:
+        for battle in club_war_day_player.battles:
             args.append(battle.result[:1].upper() + str(battle.trophyChange))
             member_trophies += battle.trophyChange
             # args[0].append(battle.result[:1].upper())
@@ -37,7 +37,8 @@ def generate_message(club: Club) -> str:
         # args[1].append('~' if member.lastOnline is None else member.lastOnline.strftime("%m/%d/%Y"))
         # args[2].append('-')
         # message = ''''''
-        args.append('~' if member.lastOnline is None else member.lastOnline.strftime("%H:%M %m/%d"))
+        lastOnline = club_war_day_player.player.lastOnline
+        args.append('~' if lastOnline is None else lastOnline.strftime("%H:%M %m/%d"))
         # for i in range(3):
         #   message += spacing.format(*args[i])+'\n'
         # messages.append(message)
