@@ -14,28 +14,50 @@ class WarSchedule:
         self.weekday = weekday
         self.time = time
     
-    def get_current_start(self, now: datetime = datetime.now(timezone.utc)) -> datetime:
-        if now.tzinfo is None or now.tzinfo.utcoffset(now) is None:
-            raise ValueError('timezone aware timestamp needed')
+    def get_current_start(self, now: datetime = None) -> datetime:
+        now = _process_datetime_input(now)
         
         today = now.date()
         offset = (today.weekday() - self.weekday) % 7
-        
-        # will be the current day if today is the weekday
-        prev_date = today - timedelta(days=offset)
+        prev_date = today - timedelta(days=offset) # will be the current day if today is the weekday
         
         # subtract a week if a new war is supposed to start today but the start time hasn't passed
-        if now.timetz() <= self.time:
+        if offset == 0 and now.timetz() <= self.time:
             prev_date -= timedelta(days=7)
         
-        # keep the same tzinfo as passed in
-        return datetime.combine(prev_date, self.time).astimezone(now.tzinfo)
+        # return as unaware utc datetime
+        return _format_datetime(datetime.combine(prev_date, self.time))
     
-    def get_next_start(self, now: datetime = datetime.now(timezone.utc)) -> datetime:
+    def get_next_start(self, now: datetime = None) -> datetime:
         return self.get_current_start(now) + timedelta(days=7)
     
-    def get_war_days(self, now: datetime = datetime.now(timezone.utc)) -> tuple[datetime, datetime, datetime]:
-        return tuple(self.get_current_start(now) + timedelta(days=n*2) for n in range(3))
+    def get_current_war_day(self, now: datetime = None) -> datetime:
+        now = _format_datetime(_process_datetime_input(now))
+        for war_day in WarSchedule.get_war_days(self.get_current_start(now)):
+            if now - war_day < timedelta(days=1):
+                return war_day
+    
+    @staticmethod
+    def get_war_days(start: datetime) -> tuple[datetime, datetime, datetime]:
+        return tuple(start + timedelta(days=n*2) for n in range(3))
+
+def _process_datetime_input(input: datetime) -> datetime:
+    """ensures offset-aware and utc"""
+    # use current time by default
+    if input is None:
+        input = datetime.utcnow()
+    
+    # add utc tzinfo
+    if input.tzinfo is None or input.tzinfo.utcoffset(input) is None: # unaware
+        input = input.replace(tzinfo=timezone.utc)
+    else:
+        input = input.astimezone(timezone.utc)
+    
+    return input
+
+def _format_datetime(output: datetime) -> datetime:
+    """convert to utc and strip tzinfo"""
+    return output.astimezone(timezone.utc).replace(tzinfo=None)
 
 def main():
     # import zoneinfo
@@ -44,7 +66,8 @@ def main():
     MON, TUE, WED, THU, FRI, SAT, SUN = range(7)
 
     WAR_SCHEDULE = WarSchedule(WED, time(1, tzinfo=PST))
-    print(WAR_SCHEDULE.get_war_days(datetime.now(timezone(timedelta(hours=-8)))))
+    print(WarSchedule.get_war_days(WAR_SCHEDULE.get_current_start()))
+    print(_format_datetime(datetime.now()) - WAR_SCHEDULE.get_current_war_day())
 
 if __name__ == '__main__':
     main()

@@ -1,3 +1,4 @@
+from __future__ import annotations
 from typing import TypedDict
 
 class Icon(TypedDict):
@@ -52,3 +53,22 @@ class PlayerData(TypedDict):
     bestTimeAsBigBrawler: int
     brawlers: list[BrawlerData]
     nameColor: str
+
+class BattleData(TypedDict):
+    battleTime: str
+    event: dict[str]
+    battle: _InnerBattleData
+
+class _InnerBattleData(TypedDict):
+    mode: str
+    type: str
+    result: str
+    duration: int
+    trophyChange: int
+    starPlayer: _Battler
+    teams: list[list[_Battler]]
+
+class _Battler(TypedDict):
+    tag: str
+    name: str
+    brawler: str
