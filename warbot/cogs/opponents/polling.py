@@ -5,10 +5,11 @@ from dataclasses import dataclass, field
 import discord
 from discord.ext import commands
 
-from warbot.cogs.database.models import BattleType, Result, War, Day, Player, Battle, Club, Club_War, Club_War_Player, Club_War_Day_Player
+from warbot.cogs.database.models import BattleType, Result, Ticket, War, Day, Player, Battle, Club, Club_War, Club_War_Player, Club_War_Day_Player
 from warbot.config import WAR_SCHEDULE
 
 from datetime import datetime, timedelta
+from itertools import chain, repeat
 
 if TYPE_CHECKING:
     from warbot.cogs.bsClient import BSClient
@@ -143,16 +144,16 @@ class Poller:
                         b = battle.add_player(club_war_day_player)
                         assert b
             for club_war_day in club_war.club_war_days.values():
-                club_war_day.redTicketsUsed = club_war_day.goldenTicketsUsed = 0
                 club_war_day_player = club_war_day.club_war_day_players[player_tag]
                 club_war_day_player_battles = sorted(club_war_day_player.club_war_day_player_battles, 
                                                         key=lambda b: b.battle.battleTime)
-                for cwdpb, v in zip(club_war_day_player_battles, (False, False, True, True)):
-                    cwdpb.isGolden = v
-                    if v:
-                        club_war_day.goldenTicketsUsed += 1
-                    else:
-                        club_war_day.redTicketsUsed += 1
+                tickets = chain(repeat(Ticket.red, 4), repeat(Ticket.golden, 4))
+                for cwdpb in club_war_day_player_battles:
+                    cwdpb.ticket1 = next(tickets)
+                    if cwdpb.battle.type == BattleType.teamRanked:
+                        cwdpb.ticket2 = next(tickets)
+                    
+
         print(f"{club_data['name']} updated")
         return club_war
         
