@@ -4,7 +4,7 @@ from warbot.cogs.database.models import Club_War, Club_War_Day
 spacing = "{:<12} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<3} {:<12}"
 headers = ["Player", "t1", "t2", "t3", "t4", "g1", "g2", "g3", "g4", "tot", "last online"]
 
-def generate_message2(club_war_day: Club_War_Day) -> str:
+def generate_message(club_war_day: Club_War_Day) -> str:
     message: str = ''
     message += spacing.format(*headers) + '\n'
     club_war_day_players = sorted(club_war_day.club_war_day_players.values(), key=lambda p:p.player.lastOnline, reverse=True)

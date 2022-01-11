@@ -2,6 +2,7 @@ from typing import TYPE_CHECKING, Union, TypedDict
 import asyncio
 from dataclasses import dataclass, field
 
+import discord
 from discord.ext import commands
 
 from warbot.cogs.database.models import BattleType, Result, War, Day, Player, Battle, Club, Club_War, Club_War_Player, Club_War_Day_Player
@@ -26,7 +27,7 @@ class Poller:
     
     async def __aenter__(self):
         self.dbcontext = self.db.begin()
-        self.dbsession = self.dbcontext.__enter__()
+        self.dbsession: Session = self.dbcontext.__enter__()
         return self
     
     async def __aexit__(self, *args):
@@ -82,16 +83,23 @@ class Poller:
             'trophyChange': battle_data['battle']['trophyChange'],
             'starPlayerTag': battle_data['battle']['starPlayer']['tag']
         }
-        battles = self.dbsession.query(Battle).filter_by(**args).filter_by(clubTag=club_tag).all()
-        if len(battles) == 0: # didn't find any
+        try:
+            battles = self.dbsession.query(Battle).filter_by(**args).all()
+        except AssertionError:
+            pass
+        if len(battles) > 1: # if 2 clubs faced each other
+            battles = [b for b in battles if b.club_war.club.tag == club_tag]
+
+        elif len(battles) == 0: # didn't find any
             battle = Battle(**args)
             self.dbsession.add(battle)
             # self.dbsession.flush()
-        elif len(battles) > 1: # afaik ths can only happen if 2 teams from the same club face each other
-            raise ValueError('hopefully this never happens')
-        else:
+        elif len(battles) == 1: # found one
             battle = battles[0]
             # battle, = battles
+        elif len(battles) > 1: # afaik ths can only happen if 2 teams from the same club face each other
+            raise ValueError('hopefully this never happens')
+        
         return battle
     
     async def update_war(self, war: War):
@@ -126,15 +134,14 @@ class Poller:
             for battle_data in battle_log_data:
                 if Poller.is_valid_battle(battle_data):
                     battle = self.get_battle(battle_data, club_war.club.tag)
-                    try:
-                        club_war_day = club_war.club_war_days[WAR_SCHEDULE.get_current_war_day(battle.battleTime)]
-                    except KeyError:
-                        assert True
+                    club_war_day = club_war.club_war_days.get(WAR_SCHEDULE.get_current_war_day(battle.battleTime))
+                    if club_war_day is None:
+                        self.dbsession.expunge(battle)
+                        continue
                     club_war_day_player = club_war_day.club_war_day_players[player_tag]
                     if player_tag not in battle.club_war_day_player_battles:
                         b = battle.add_player(club_war_day_player)
                         assert b
-
             for club_war_day in club_war.club_war_days.values():
                 club_war_day.redTicketsUsed = club_war_day.goldenTicketsUsed = 0
                 club_war_day_player = club_war_day.club_war_day_players[player_tag]
