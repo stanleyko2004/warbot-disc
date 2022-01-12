@@ -1,5 +1,7 @@
 from .models import Club, BattleType, Player
 from warbot.cogs.database.models import Club_War, Club_War_Day
+from warbot.config import PST
+from datetime import timezone
 
 spacing = "{:<12} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<3} {:<12}"
 headers = ["Player", "t1", "t2", "t3", "t4", "g1", "g2", "g3", "g4", "tot", "last online"]
@@ -34,7 +36,7 @@ def generate_message(club_war_day: Club_War_Day) -> str:
         # args[2].append('-')
         # message = ''''''
         lastOnline = club_war_day_player.player.lastOnline
-        args.append('~' if lastOnline is None else lastOnline.strftime("%H:%M %m/%d"))
+        args.append('~' if lastOnline is None else lastOnline.replace(tzinfo=timezone.utc).astimezone(PST).strftime("%H:%M %m/%d"))
         # for i in range(3):
         #   message += spacing.format(*args[i])+'\n'
         # messages.append(message)
