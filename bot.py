@@ -48,6 +48,7 @@ async def reload(ctx, extension):
 bot.load_extension('warbot.cogs.bsClient')
 bot.load_extension('warbot.cogs.opponents')
 bot.load_extension('warbot.cogs.database')
+bot.load_extension('warbot.cogs.teamgen')
 
 
 bot.run(DISC_TOKEN())

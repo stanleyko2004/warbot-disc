@@ -74,7 +74,7 @@ class Opponents(commands.Cog):
             except (TypeError, ValueError):
                 raise commands.BadArgument(f'{arg} failed to parse (must be in iso format)')
     
-    class ClubTag(commands.Converter):
+    class Tag(commands.Converter):
         async def convert(self, ctx, tag: str) -> str:
             tag = tag.strip('#').upper()
             ALLOWED = '0289PYLQGRJCUV'
@@ -86,7 +86,7 @@ class Opponents(commands.Cog):
             return '#' + tag
     
     @commands.command(aliases = ['aw'])
-    async def addWar(self, ctx: context.Context, tags: commands.Greedy[ClubTag], *, start_time: StartTime = None):
+    async def addWar(self, ctx: context.Context, tags: commands.Greedy[Tag], *, start_time: StartTime = None):
         start = time.time()
         async with Poller(self.bot) as poller:
             war = poller.init_war(start_time)
@@ -131,7 +131,9 @@ class Opponents(commands.Cog):
                 
                 update_tasks = []
                 for club_war in war.club_wars:
-                    club_war_day = club_war.club_war_days.get(WAR_SCHEDULE.get_current_war_day(), list(club_war.club_war_days.values())[-1])
+                    club_war_day = club_war.club_war_days.get(WAR_SCHEDULE.get_current_war_day())#, list(club_war.club_war_days.values())[-1])
+                    if club_war_day is None:
+                        assert True
                     update_tasks.append(self.bot.loop.create_task(
                         update_club_war_channel(club_war_day, guild['display'][1][club_war_day.club_war.club.tag])
                     ))
