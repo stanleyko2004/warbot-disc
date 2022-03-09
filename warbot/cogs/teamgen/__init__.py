@@ -45,12 +45,10 @@ class Teamgen(commands.Cog):
             if chunk_len + len(line) > 2000 - 3:
                 chunk += '```'
                 await ctx.send(chunk)
-                print('-----')
                 chunk = '```\n' + line
                 chunk_len = len(line) + 4
             else:
                 chunk += '\n' + line
-                print(line)
                 chunk_len += len(line)
         if chunk_len > 4:
             chunk += '```'
