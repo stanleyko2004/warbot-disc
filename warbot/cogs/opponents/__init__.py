@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from warbot.cogs.bsClient import BSClient
     from discord.guild import Guild
 
-WAR_DISPLAY = 'test-Opponents'
+WAR_DISPLAY = 'Opponents'
 
 class Opponents(commands.Cog):
     def __init__(self, bot: commands.Bot):
@@ -50,7 +50,7 @@ class Opponents(commands.Cog):
         pass
     
     @commands.command(aliases = ['wload'])
-    async def loadwar(self, ctx: context.Context, warId: int):
+    async def loadwar(self, ctx: context.Context, warId: int, day: int = None):
         guild: Guild = ctx.guild
         async with Poller(self.bot) as poller:
             war = poller.get_war(warId)
@@ -61,7 +61,11 @@ class Opponents(commands.Cog):
                 
             async def load_club(club_war: mds.Club_War):
                 channel = await guild.create_text_channel(name=club_war.name, category=display)
-                club_war_day = club_war.club_war_days.get(WAR_SCHEDULE.get_current_war_day(), list(club_war.club_war_days.values())[-1])
+                if day is None:
+                    war_day = WAR_SCHEDULE.get_current_war_day()
+                else:
+                    war_day = WAR_SCHEDULE.get_war_days(club_war.war.start)[day]
+                club_war_day = club_war.club_war_days.get(war_day, list(club_war.club_war_days.values())[-1])
                 await channel.send(generate_message(club_war_day))
                 return club_war.club.tag, channel
 

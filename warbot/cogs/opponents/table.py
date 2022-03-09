@@ -3,8 +3,8 @@ from warbot.cogs.database.models import Club_War, Club_War_Day
 from warbot.config import PST
 from datetime import timezone
 
-spacing = "{:<12} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<3} {:<12}"
-headers = ["Player", "t1", "t2", "t3", "t4", "g1", "g2", "g3", "g4", "tot", "last online"]
+spacing = "{:<12} {:<2} {:<2} {:<2} {:<2} {:<2} {:<2} {:<3} {:<12}"
+headers = ["Player", "t1", "t2", "t3", "t4", "t5", "t6", "tot", "last online"]
 
 def generate_message(club_war_day: Club_War_Day) -> str:
     message: str = ''
@@ -43,7 +43,7 @@ def generate_message(club_war_day: Club_War_Day) -> str:
         message += spacing.format(*args)+'\n'
     message += f'\nTotal Trophies: {club_war_day.club_trophies}'
     reds, goldens = club_war_day.tickets_used
-    message += f'\nRed tickets used: {reds}  Golden tickets used: {goldens}'
+    message += f'\nTickets used: {reds + goldens}'
     return f'```{message}```'
 
 def disc_safe(str: str) -> str:

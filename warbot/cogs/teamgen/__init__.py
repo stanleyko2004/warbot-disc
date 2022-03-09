@@ -25,10 +25,11 @@ class Teamgen(commands.Cog):
     
     async def get_scores(self):
         players: brawlstats.Members= await self.client.get_club_members('2PLUPQPV')
-        # for p in players.raw_data:
-        #     print(p['tag'], p['name'])
+        for p in players.raw_data:
+            print(p['tag'], p['name'])
         result = await asyncio.gather(*[check_player(self.client, p['tag']) for p in players])
         result = sorted(result, key=lambda p: p[1], reverse=True)
+        print([p.name for p in result])
         return result
     
     @commands.command(aliases = ['stack'])
@@ -44,10 +45,12 @@ class Teamgen(commands.Cog):
             if chunk_len + len(line) > 2000 - 3:
                 chunk += '```'
                 await ctx.send(chunk)
-                chunk = '```\n'
-                chunk_len = 4
+                print('-----')
+                chunk = '```\n' + line
+                chunk_len = len(line) + 4
             else:
                 chunk += '\n' + line
+                print(line)
                 chunk_len += len(line)
         if chunk_len > 4:
             chunk += '```'
@@ -94,6 +97,7 @@ class Teamgen(commands.Cog):
         
         await ctx.send('```' + 'modified ' + ', '.join(modified) + '\n' + 
                        'unfound: ' ', '.join(unfound) + '```')
+        await ctx.invoke(self.viewowners)
         
                 
     @commands.command(aliases = ['ti'])
