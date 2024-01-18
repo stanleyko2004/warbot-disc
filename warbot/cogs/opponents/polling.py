@@ -2,121 +2,190 @@ from typing import TYPE_CHECKING, Union, TypedDict
 import asyncio
 from dataclasses import dataclass, field
 
+import discord
 from discord.ext import commands
 
-from .models import Player, Battle, Club, BattleType, Result
+from warbot.cogs.database.models import BattleType, Result, Ticket, War, Day, Player, Battle, Club, Club_War, Club_War_Player, Club_War_Day_Player
+from warbot.config import WAR_SCHEDULE
 
 from datetime import datetime, timedelta
+from itertools import chain, repeat
 
 if TYPE_CHECKING:
     from warbot.cogs.bsClient import BSClient
-
-from warbot.cogs.bsClient.schema import *
-
-@dataclass(unsafe_hash=True, eq=True, frozen=True)
-class BattleProxy:
-    battleTime: datetime = field(hash=True)
-    trophyChange: int = field(hash=True)
-    type: BattleType = field(hash=True)
-    result: Result = field(hash=True)
-    battle_data: dict = field(hash=False, compare=False, repr=False)
     
-    def __eq__(self, other) -> bool:
-        return (self.battle_data, self.trophyChange, self.type, self.result) == (other.battle_data, other.trophyChange, other.type, other.result)
+from warbot.cogs.bsClient.schema import *
+from brawlstats.errors import NotFoundError
+
+from sqlalchemy.orm.session import Session, sessionmaker
 
 class Poller:
     
     def __init__(self, bot: commands.Bot):
         self.bot = bot
         self.client: BSClient = bot.get_cog('BSClient')
+        self.db: sessionmaker = bot.get_cog('DBSession')
     
-    async def initialize_club(self, tag: str = None, club_data: ClubData = None) -> Club:
-        if tag is club_data is None:
-            raise ValueError('need club tag or club data')
-        return await self.update_club(Club(tag or club_data['tag']), club_data, True, True)
+    async def __aenter__(self):
+        self.dbcontext = self.db.begin()
+        self.dbsession: Session = self.dbcontext.__enter__()
+        return self
+    
+    async def __aexit__(self, *args):
+        self.dbcontext.__exit__(*args)
+        self.dbsession = None
+    
+    def init_war(self, start_time: datetime = None) -> War:
+        if start_time is None:
+            start_time = WAR_SCHEDULE.get_current_start()
         
-    async def initialize_player(self, tag: str = None, member_data: Union[MemberData, PlayerData] = None, rank: int = None):
-        if tag is member_data is None:
-            raise ValueError('need player tag or player data')
-        return await self.update_player(Player(tag or member_data['tag']), member_data, rank)
+        war = War(start_time)
+        for day_start in WAR_SCHEDULE.get_war_days(start_time):
+            war.add_day(Day(day_start))
+        
+        self.dbsession.add(war)
+        # self.dbsession.flush()
+        return war
     
-    async def update_club(self, club: Club, club_data: ClubData = None, update_players: bool = False, update_logs: bool = False) -> Club:
+    def add_clubs(self, war: War, club_tags: list[str]):
+       for club_tag in club_tags:
+           war.add_club(self.get_club(club_tag))
+       
+    def get_war(self, warId: int) -> Union[War, None]:
+        return self.dbsession.get(War, warId)
+    
+    def get_club(self, club_tag: str) -> Club:
+        club = self.dbsession.get(Club, club_tag)
+        if club is None:
+            club = Club(club_tag)
+            self.dbsession.add(club)
+            return club
+        else:
+            return club
+    
+    def get_player(self, player_tag: str) -> Player:
+        player = self.dbsession.get(Player, player_tag)
+        if player is None:
+            player = Player(player_tag)
+            self.dbsession.add(player)
+            if player is None:
+                assert True
+            return player
+        else:
+            if player is None:
+                assert True
+            return player
+    
+    def get_battle(self, battle_data: BattleData, club_tag: str) -> Battle:
+        args = {
+            'battleTime': Poller.get_datetime(battle_data['battleTime']),
+            'type': BattleType(battle_data['battle']['type']),
+            'result': Result(battle_data['battle']['result']),
+            'trophyChange': battle_data['battle']['trophyChange'],
+            'starPlayerTag': battle_data['battle']['starPlayer']['tag']
+        }
+        try:
+            battles = self.dbsession.query(Battle).filter_by(**args).all()
+        except AssertionError:
+            pass
+        if len(battles) > 1: # if 2 clubs faced each other
+            battles = [b for b in battles if b.club_war.club.tag == club_tag]
+
+        elif len(battles) == 0: # didn't find any
+            battle = Battle(**args)
+            self.dbsession.add(battle)
+            # self.dbsession.flush()
+        elif len(battles) == 1: # found one
+            battle = battles[0]
+            # battle, = battles
+        elif len(battles) > 1: # afaik ths can only happen if 2 teams from the same club face each other
+            raise ValueError('hopefully this never happens')
+        
+        return battle
+    
+    async def update_war(self, war: War):
+        await asyncio.gather(*[self.update_club_war(club_war) for club_war in war.club_wars])
+        return war
+    
+    async def update_club_war(self, club_war: Club_War, club_data: ClubData = None):
         if club_data is None:
-            club_data = (await self.client.get_club(club.tag)).raw_data
-            print(f"found {club_data['name']}({club.tag}), getting players")
+            club_data = (await self.client.get_club(club_war.club.tag)).raw_data
+        print(f"found {club_data['name']}({club_war.club.tag}), fetching logs")
         
-        club.name = club_data['name']
+        club_war.name = club_data['name']
+        club_war.trophies = club_data['trophies']
         
-        # players = {member_data['tag']: member_data for member_data in club_data['members']}
-
-        if update_players:
-            update_tasks = []
-            init_tasks = []
-            for i, member_data in enumerate(club_data['members']):
-                if member_data['tag'] in club.members:
-                    update_tasks.append(self.bot.loop.create_task(self.update_player(club.members[member_data['tag']], rank=i+1)))
-                else:
-                    init_tasks.append(self.initialize_player(member_data['tag'], rank=i+1))
-            new_players: list[Player] = await asyncio.gather(*init_tasks)
-            club.members.update({player.tag: player for player in new_players})
-            await asyncio.gather(*update_tasks)
-
-        if update_logs:
-            battle_log_data: list[list[dict]] = list(map(lambda b: b.raw_data, await asyncio.gather(*[self.client.get_battle_logs(tag) for tag in club.members])))
-            for tag, battle_log in zip(club.members, battle_log_data):
-                club.members[tag].lastOnline = Poller.get_datetime(battle_log[0]['battleTime'])
-            
-            # battle_log_data = sum(map(lambda d: d.raw_data, await asyncio.gather(*[self.client.get_battle_logs(tag) for tag in club.members])), [])
-            old_battles = club.battles.copy()
-            unique_battles: set[BattleProxy] = club.battles
-            for battle_data in sum(battle_log_data, []):
-                if args := Poller.valid_battle(battle_data):
-                    unique_battles.add(BattleProxy(*args, battle_data))
-            new_battles = unique_battles - old_battles
-            club.battles |= new_battles
-            for battle_proxy in new_battles:
-                new_battle = Battle(*[getattr(battle_proxy, v.name) for v in battle_proxy.__dataclass_fields__.values() if v.hash is not False]) # very sus and might break if dataclass updates
-                try:
-                    for team_member_data in (d for i in range(2) for d in battle_proxy.battle_data['battle']['teams'][i]):
-                        new_battle.teams.append(team_member_data['tag'])
-                        if player := club.members.get(team_member_data['tag']):
-                            player.warBattles.append(new_battle)
-                except KeyError:
+        player_updates = []
+        for i, member_data in enumerate(club_data['members']):
+            club_war_player = club_war.club_war_players.get(member_data['tag'])
+            if club_war_player is None:
+                club_war_player = club_war.add_player(self.get_player(member_data['tag']))
+                if club_war_player is None:
                     assert True
-        print(f"{club_data['name']}({club.tag}) initialized")
-        return club
+            if club_war_player is None:
+                assert True
+            player_updates.append(self.bot.loop.create_task(self.update_club_war_player(club_war_player, member_data, i+1)))
+        await asyncio.gather(*player_updates) # ^ all that can be one lined but im restricting myself
+        
+        battle_logs_data: list[list[BattleData]] = list(map(lambda b: b.raw_data, 
+                                                     await asyncio.gather(*[self.client.get_battle_logs(tag) 
+                                                                            for tag in club_war.club_war_players])))
+        for (player_tag, club_war_player), battle_log_data in zip(club_war.club_war_players.items(), battle_logs_data):
+            club_war_player.lastOnline = Poller.get_datetime(battle_log_data[0]['battleTime'])
+            for battle_data in battle_log_data:
+                if Poller.is_valid_battle(battle_data):
+                    battle = self.get_battle(battle_data, club_war.club.tag)
+                    club_war_day = club_war.club_war_days.get(WAR_SCHEDULE.get_current_war_day(battle.battleTime))
+                    if club_war_day is None:
+                        self.dbsession.expunge(battle)
+                        continue
+                    club_war_day_player = club_war_day.club_war_day_players[player_tag]
+                    if player_tag not in battle.club_war_day_player_battles:
+                        b = battle.add_player(club_war_day_player)
+                        assert b
+            for club_war_day in club_war.club_war_days.values():
+                club_war_day_player = club_war_day.club_war_day_players[player_tag]
+                club_war_day_player_battles = sorted(club_war_day_player.club_war_day_player_battles, 
+                                                        key=lambda b: b.battle.battleTime)
+                tickets = chain(repeat(Ticket.red, 4), repeat(Ticket.golden, 4))
+                for cwdpb in club_war_day_player_battles:
+                    cwdpb.ticket1 = next(tickets)
+                    if cwdpb.battle.type == BattleType.teamRanked:
+                        cwdpb.ticket2 = next(tickets)
+                    
+
+        print(f"{club_data['name']} updated")
+        return club_war
+        
     
-    async def update_player(self, player: Player, member_data: Union[MemberData, PlayerData] = None, rank: int = None) -> Player:
+    async def update_club_war_player(self, 
+                                     club_war_player: Club_War_Player, 
+                                     member_data: Union[MemberData, PlayerData] = None, 
+                                     rank: int = None) -> Club_War_Player:
         if member_data is None:
-            member_data: PlayerData = (await self.client.get_player(player.tag)).raw_data
+            member_data: PlayerData = (await self.client.get_player(club_war_player.playerTag)).raw_data
         
-        player.name = member_data['name']
-        player.trophies = member_data['trophies']
-        player.rank = rank
+        if club_war_player is None:
+            assert True
         
-        return player
+        club_war_player.name = member_data['name']
+        club_war_player.trophies = member_data['trophies']
+        club_war_player.rank = rank
+        
+        return club_war_player
     
     @staticmethod
-    def valid_battle(battle: dict) -> Union[bool, tuple]:
+    def is_valid_battle(battle: BattleData) -> bool:
         if not 'trophyChange' in battle['battle']: # gets rid of power league
-            return None
-        
-        battle_time = Poller.get_datetime(battle['battleTime'])
-        if (datetime.now() - battle_time).total_seconds() > 24 * 3600: #in time range
-            return None
+            return False
         
         if 'type' not in battle['battle']: # gets rid of boss fight
-            return None
+            return False
         
         if battle['battle']['type'] in {'teamRanked', 'soloRanked'}: # gets rid of ladder
-            return (
-                battle_time, 
-                battle['battle']['trophyChange'], 
-                BattleType(battle['battle']['type']), 
-                Result(battle['battle']['result'])
-            ) 
+            return True
     
     @staticmethod
     def get_datetime(timestamp: str) -> datetime:
-        return datetime.strptime(timestamp, '%Y%m%dT%H%M%S.%fZ') - timedelta(hours=8) #goddamn finland
+        return datetime.strptime(timestamp, '%Y%m%dT%H%M%S.%fZ')
     

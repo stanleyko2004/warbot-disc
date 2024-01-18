@@ -1,5 +1,6 @@
 import datetime
 from datetime import datetime, time, timedelta, timezone
+from itertools import takewhile
 
 class WarSchedule:
     
@@ -33,9 +34,11 @@ class WarSchedule:
     
     def get_current_war_day(self, now: datetime = None) -> datetime:
         now = _format_datetime(_process_datetime_input(now))
-        for war_day in WarSchedule.get_war_days(self.get_current_start(now)):
-            if now - war_day < timedelta(days=1):
-                return war_day
+        *_, war_day = takewhile(lambda wd: wd < now, WarSchedule.get_war_days(self.get_current_start(now)))
+        # for war_day in WarSchedule.get_war_days(self.get_current_start(now)):
+        #     if now - war_day < timedelta(days=1):
+        #         return war_day
+        return war_day
     
     @staticmethod
     def get_war_days(start: datetime) -> tuple[datetime, datetime, datetime]:

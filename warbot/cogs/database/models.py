@@ -24,6 +24,10 @@ class BattleType(str, enum.Enum):
     soloRanked = 'soloRanked'
     teamRanked = 'teamRanked'
 
+class Ticket(str, enum.Enum):
+    red = 'red'
+    golden = 'golden'
+
 @mapper_registry.mapped
 @dataclass
 class War:
@@ -35,7 +39,7 @@ class War:
     
     # store days
     days: list[Day] = field(default_factory=list, repr=False, metadata={'sa': relationship('Day')})
-    club_wars: Club_War = field(default_factory=list, repr=False, metadata={'sa': relationship('Club_War', back_populates='war')})
+    club_wars: list[Club_War] = field(default_factory=list, repr=False, metadata={'sa': relationship('Club_War', back_populates='war')})
 
     def add_day(self, day: Day) -> Day:
         self.days.append(day)
@@ -113,8 +117,9 @@ class Battle:
     starPlayerTag: str = field(metadata={'sa': Column(String)}) # in order to uniquely identify battle
     
     def add_player(self, club_war_day_player: Club_War_Day_Player) -> Club_War_Day_Player_Battle:
-        club_war_day_player_battle = Club_War_Day_Player_Battle(club_war_day_player=club_war_day_player, battle=self)
+        club_war_day_player_battle = Club_War_Day_Player_Battle(club_war_day_player=club_war_day_player)
         # club_war_day_player_battle.
+        self.club_war_day_player_battles[club_war_day_player.player_tag] = club_war_day_player_battle
         return club_war_day_player_battle
     
 @mapper_registry.mapped
@@ -144,7 +149,8 @@ class Club_War:
     trophies: int = field(init=False, repr=False, metadata={'sa': Column(Integer)})
     
     def add_player(self, player: Player) -> Club_War_Player:
-        club_war_player = Club_War_Player(club_war=self,player=player)
+        club_war_player = Club_War_Player(player=player)
+        self.club_war_players[player.tag] = club_war_player
         for club_war_day in self.club_war_days.values():
             Club_War_Day_Player(club_war_day=club_war_day, player=club_war_player)
         return club_war_player
@@ -194,15 +200,10 @@ class Club_War_Day:
                                            ['club_war.clubTag', 'club_war.warId']),)
     
     # actual data
-    battles: set[Battle] = field(init=False, default_factory=set, repr=False, metadata={'sa': relationship(Battle, collection_class=set)})
     club_war_day_players: dict[str, Club_War_Day_Player] = field(init=False, repr=False, 
                                                             metadata={'sa': relationship('Club_War_Day_Player', 
                                                                                          back_populates='club_war_day',
                                                                                          collection_class=attribute_mapped_collection('player_tag'))})
-    
-    clubTrophies: int = field(init=False, default=0, repr=False, metadata={'sa': Column(Integer)})
-    redTicketsUsed: int = field(init=False, default=0, repr=False, metadata={'sa': Column(Integer)})
-    goldenTicketsUsed: int = field(init=False, default=0, repr=False, metadata={'sa': Column(Integer)})
     
     @property
     def day_start(self):
@@ -210,7 +211,16 @@ class Club_War_Day:
     
     @property
     def club_trophies(self):
-        return sum(b.trophyChange for b in self.battles)
+        return sum(p.total_trophies for p in self.club_war_day_players.values())
+    
+    @property
+    def tickets_used(self):
+        red = golden = 0
+        for player in self.club_war_day_players.values():
+            dr, dg = player.tickets_used
+            red += dr
+            golden += dg
+        return red, golden
     
 @mapper_registry.mapped
 @dataclass
@@ -242,6 +252,21 @@ class Club_War_Day_Player:
     def player_tag(self): # primary keys don't get set until the object is in the databas so need this to access player tag
         return self.player.player.tag
     
+    @property
+    def total_trophies(self):
+        return sum(b.trophyChange for b in self.battles)
+    
+    @property
+    def tickets_used(self):
+        red = golden = 0
+        for battle in self.club_war_day_player_battles:
+            for ticket in battle.tickets:
+                if ticket == Ticket.red:
+                    red += 1
+                elif ticket == Ticket.golden:
+                    golden += 1
+        return red, golden
+    
 @mapper_registry.mapped
 @dataclass
 class Club_War_Day_Player_Battle:
@@ -263,4 +288,13 @@ class Club_War_Day_Player_Battle:
                                            ['club_war_day_player.clubTag', 'club_war_day_player.warId', 'club_war_day_player.dayId', 'club_war_day_player.playerTag']),)
     
     # actual data
-    isGolden: bool = field(default=None, metadata={'sa': Column(Boolean)})
+    ticket1: Ticket = field(default=None, metadata={'sa': Column(Enum(Ticket))})
+    ticket2: Ticket = field(default=None, metadata={'sa': Column(Enum(Ticket))})
+    
+    @property
+    def player_tag(self): # primary keys don't get set until the object is in the databas so need this to access player tag
+        return self.club_war_day_player.player.player.tag
+    
+    @property
+    def tickets(self):
+        return tuple(filter(None, (self.ticket1, self.ticket2)))
